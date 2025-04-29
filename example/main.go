@@ -14,9 +14,9 @@ func main() {
 	logger := logger.NewFmtLogger()
 	url := ""
 	ins, err := morn.SetupMongoByURI(url, &option.MornOption{
-		IsGenID:       true,
-		DefaultNumber: 100000,
-		Logger:        logger,
+		IsGenID:       true,   //auto generate id for entity
+		DefaultNumber: 100000, //default number for auto generate id
+		Logger:        logger, //logger for morn
 	})
 	if err != nil {
 		logger.Error(err.Error())

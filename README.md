@@ -34,8 +34,6 @@ go get github.com/nghialthanh/morn-go
 ```
 The latest version of MORM-Go supports the last four major Go releases and is fully compatible with MongoDB 8.0 as well as the official mongo-driver v2.
 
----
-
 ### 📚 Method Types
 
 The library provides **two types of methods**:
@@ -51,9 +49,39 @@ The library provides **two types of methods**:
 - `M` methods rely heavily on Go’s `reflect` package, which can negatively impact runtime performance.
 - **Recommendation:** If performance is a concern (e.g., in high-throughput scenarios), consider using the **normal methods** instead of the `M` variants.
 
----
+### 📘 Usage
 
-## 🚀 Usage examples
+#### 🔹 `MInsertOne`
+Insert a single document into a collection.
+```go
+user := User{
+    Name: "Alice",
+    Age: 28,
+}
+// err := dao.Clause().MInsertOne(&user)
+err := dao.Ctx(ctx).MInsertOne(&user)
+```
+
+#### 🔹 `MFindOne`
+Query MongoDB and map results directly to structs.
+
+```go
+var entity *User
+//err := dao.Clause().Where(map[string]interface{}{"age": map[string]interface{}{"$gt": 20}}).Find(entity)
+err := dao.Ctx(ctx).Where(bson.M{"age": bson.M{"$gt": 20}}).Find(entity)
+```
+
+#### 🔹 `MFindMany`
+Query MongoDB and map results directly to a slice of structs.
+
+```go
+var entity *[]User
+err := dao.Ctx(ctx).Limit(20).Offset(0).Sort("age:asc").Where(bson.M{"age": bson.M{"$gt": 20}}).Find(entity)
+```
+> ✅ Automatically decodes to your struct slice using reflection
+
+
+#### 🚀 Usage examples
 
 ```go
 package main
@@ -163,9 +191,9 @@ You can explore how to organize your code and use the provided functions by refe
 
 ## 🧩 Reference
 
-MongoDB         [MongoDB 8.0](https://www.mongodb.com/docs/manual/release-notes/8.0)
-Mongo-Driver    [Mongo-Driver 2.0](https://www.mongodb.com/docs/drivers/go/v2.0/)
-Golang          [Golang](https://go.dev/)
+- MongoDB         [MongoDB 8.0](https://www.mongodb.com/docs/manual/release-notes/8.0)
+- Mongo-Driver    [Mongo-Driver 2.0](https://www.mongodb.com/docs/drivers/go/v2.0/)
+- Golang          [Golang](https://go.dev/)
 
 ## 📄 License
 
