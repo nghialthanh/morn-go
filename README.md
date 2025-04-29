@@ -1,10 +1,18 @@
 # MORN-GO
 
+MORM-Go (Mongo ORM for Go) is a lightweight and intuitive Object-Relational Mapping (ORM) library designed to simplify working with MongoDB in Golang projects.
+
+---
+
+## 📌 Motivation
+
 One challenge I consistently face when starting a new project using the MongoDB and Golang tech stack is that the official MongoDB driver can be quite difficult to work with. Each project often has its own unique configuration, which can be confusing and inconsistent for developers.
 
 This library was created to help address that issue. It's a lightweight and intuitive ORM for MongoDB and Golang, called MORM-Go (Mongo ORM for Go).
 
-## Feature Overview
+---
+
+## ✅ Feature Overview
 
 * Full-Featured ORM
 * Find, FindOne, FindOneAndUpdate, DeleteOne, DeleteMany,...
@@ -17,15 +25,35 @@ This library was created to help address that issue. It's a lightweight and intu
 * Every feature comes with tests
 * Developer Friendly
 
-## Getting Started
+---
+
+## 🔧 Getting Started
 
 ```sh
 go get github.com/nghialthanh/morn-go
 ```
 The latest version of MORM-Go supports the last four major Go releases and is fully compatible with MongoDB 8.0 as well as the official mongo-driver v2.
 
+---
 
-## Usage examples
+### 📚 Method Types
+
+The library provides **two types of methods**:
+
+1. **Normal Methods**  
+   These return the original result types from the official `mongo-driver` (e.g., `*mongo.Cursor`, `*mongo.SingleResult`, etc.).
+
+2. **`M` Methods**  
+   These methods are prefixed with the letter `M` and return results mapped directly to the entity struct you pass in.
+
+#### ⚠️ Performance Note
+
+- `M` methods rely heavily on Go’s `reflect` package, which can negatively impact runtime performance.
+- **Recommendation:** If performance is a concern (e.g., in high-throughput scenarios), consider using the **normal methods** instead of the `M` variants.
+
+---
+
+## 🚀 Usage examples
 
 ```go
 package main
@@ -114,7 +142,9 @@ func main() {
 ```
 You can explore how to organize your code and use the provided functions by referring to the examples in the example folder or the test cases in the test folder.
 
-## Contribute
+---
+
+## 🤝 Contribute
 
 **Use issues for everything**
 
@@ -129,14 +159,16 @@ You can explore how to organize your code and use the provided functions by refe
   - Suggesting new features or enhancements
   - Improve/fix documentation
 
-## Reference
+---
+
+## 🧩 Reference
 
 MongoDB         [MongoDB 8.0](https://www.mongodb.com/docs/manual/release-notes/8.0)
 Mongo-Driver    [Mongo-Driver 2.0](https://www.mongodb.com/docs/drivers/go/v2.0/)
 Golang          [Golang](https://go.dev/)
 
-## License
+## 📄 License
 
 © Nghia, 2025
 
-Released under the [MIT License](https://github.com/go-gorm/gorm/blob/master/LICENSE)
+This project is licensed under the MIT License. See the [MIT License](https://github.com/go-gorm/gorm/blob/master/LICENSE) file for details.
