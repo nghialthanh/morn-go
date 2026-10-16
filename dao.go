@@ -2,13 +2,10 @@ package morn
 
 import (
 	"context"
-	"errors"
 
 	"github.com/nghialthanh/morn-go/clause"
-	"github.com/nghialthanh/morn-go/gen"
 	"github.com/nghialthanh/morn-go/logger"
 	"github.com/nghialthanh/morn-go/option"
-	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -44,6 +41,8 @@ func NewDao(colName string, template interface{}, ins *Instance, opt *option.Mor
 	}
 }
 
+// Clause starts a query that is not bound to a caller context.
+// Inside Session, use Ctx with the callback context so the query joins the transaction.
 func (d *Dao) Clause() *clause.Clause {
 	return clause.NewClause(
 		d.collection,
@@ -97,36 +96,9 @@ func (d *Dao) GetOptionField() *option.MornOption {
 // 	d.option = currOpt
 // }
 
-// GenIDForDao is used to generate a new ID for the collection
-// This function will update the value of the document with the _id is the collection name
-// and then return the new value by plus 1
-func (d *Dao) GenIDForDao() (int64, error) {
-	if d.genDao == nil {
-		return 0, errors.New("generator dao not found")
-	}
-	generatorDao := *d.genDao
-	res := generatorDao.collection.FindOneAndUpdate(context.TODO(), bson.M{
-		"_id": d.colName,
-	}, bson.M{
-		"$inc": bson.M{"value": 1},
-	})
-	if res == nil || res.Err() != nil {
-		if res.Err() == mongo.ErrNoDocuments {
-			return 0, errors.New("no document found")
-		}
-		return 0, res.Err()
-	}
-
-	var generator gen.Generator
-	err := res.Decode(&generator)
-	if err != nil {
-		return 0, err
-	}
-
-	return generator.Value, nil
-}
-
-// Session is a function that starts a session and executes a function with the session context
+// Session runs f inside a transaction.
+// Queries join the transaction when they are built with Ctx and the context f receives.
+// Clause does not join the transaction. The callback context is not stored on this Dao.
 func (d *Dao) Session(ctx context.Context, f func(ctx context.Context) error, opt *option.SessionOption) error {
 	session, err := d.client.StartSession()
 	if err != nil {

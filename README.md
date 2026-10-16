@@ -1,202 +1,151 @@
-# MORN-GO
+# morn-go
 
-MORM-Go (Mongo ORM for Go) is a lightweight and intuitive Object-Relational Mapping (ORM) library designed to simplify working with MongoDB in Golang projects.
+morn-go is a small MongoDB library for Go. It sits on the official driver and gives you a collection handle, struct mapping, indexes, a numeric id counter, and transactions without setting those up from scratch in every project.
 
----
+## Why it exists
 
-## 📌 Motivation
+The official driver can do almost anything, so each project ends up with its own way of connecting, naming options, and decoding documents. morn-go keeps that setup in one place: one Dao per collection, one Clause per query.
 
-One challenge I consistently face when starting a new project using the MongoDB and Golang tech stack is that the official MongoDB driver can be quite difficult to work with. Each project often has its own unique configuration, which can be confusing and inconsistent for developers.
+## What you can do
 
-This library was created to help address that issue. It's a lightweight and intuitive ORM for MongoDB and Golang, called MORM-Go (Mongo ORM for Go).
+- Find, create, update, delete, count, and aggregate
+- Decode a result into your struct, or take the driver value and decode it yourself
+- Declare indexes beside the collection
+- Hand out an ascending id with `GenIDForDao`
+- Run a callback inside a transaction
+- Pass a context, and plug in a logger
 
----
+An index string looks like `"user_id:1"`. A sort string looks like `"age:asc"` or `"age:desc"`.
 
-## ✅ Feature Overview
-
-* Full-Featured ORM
-* Find, FindOne, FindOneAndUpdate, DeleteOne, DeleteMany,...
-* Easy to manage table indexes right in the source code
-* Integrated ascending GenID method
-* Support self-conversion from mongo object to a certain struct
-* Session, Save Point, RollbackTo to Saved Point
-* Context, Prepared Statement Mode, DryRun Mode
-* Logger
-* Every feature comes with tests
-* Developer Friendly
-
----
-
-## 🔧 Getting Started
+## Install
 
 ```sh
 go get github.com/nghialthanh/morn-go
 ```
-The latest version of MORM-Go supports the last four major Go releases and is fully compatible with MongoDB 8.0 as well as the official mongo-driver v2.
 
-### 📚 Method Types
+The module requires Go 1.23 and uses [mongo-driver v2](https://www.mongodb.com/docs/drivers/go/v2.0/).
 
-The library provides **two types of methods**:
+## Two kinds of methods
 
-1. **Normal Methods**  
-   These return the original result types from the official `mongo-driver` (e.g., `*mongo.Cursor`, `*mongo.SingleResult`, etc.).
+`FindOne`, `FindMany`, `UpdateMany`, and `Aggregate` return the driver's own values, such as `*mongo.Cursor` or `*mongo.SingleResult`.
 
-2. **`M` Methods**  
-   These methods are prefixed with the letter `M` and return results mapped directly to the entity struct you pass in.
+Methods with an `M` prefix write the result into the value you pass. `MFindOne` fills one struct. `MFindMany` fills a slice. `MCreateOne` inserts one document and returns the inserted id.
 
-#### ⚠️ Performance Note
+The `M` methods use reflection. On a hot path, call the method that returns the driver value and decode it yourself.
 
-- `M` methods rely heavily on Go’s `reflect` package, which can negatively impact runtime performance.
-- **Recommendation:** If performance is a concern (e.g., in high-throughput scenarios), consider using the **normal methods** instead of the `M` variants.
+## Usage
 
-### 📘 Usage
+`NewDao` binds a collection to the struct its documents use. `Clause` starts a query on `context.TODO()`. `Ctx` starts a query on the context you pass.
 
-#### 🔹 `MInsertOne`
-Insert a single document into a collection.
-```go
-user := User{
-    Name: "Alice",
-    Age: 28,
-}
-// err := dao.Clause().MInsertOne(&user)
-err := dao.Ctx(ctx).MInsertOne(&user)
-```
-
-#### 🔹 `MFindOne`
-Query MongoDB and map results directly to structs.
-
-```go
-var entity *User
-//err := dao.Clause().Where(map[string]interface{}{"age": map[string]interface{}{"$gt": 20}}).Find(entity)
-err := dao.Ctx(ctx).Where(bson.M{"age": bson.M{"$gt": 20}}).Find(entity)
-```
-
-#### 🔹 `MFindMany`
-Query MongoDB and map results directly to a slice of structs.
-
-```go
-var entity *[]User
-err := dao.Ctx(ctx).Limit(20).Offset(0).Sort("age:asc").Where(bson.M{"age": bson.M{"$gt": 20}}).Find(entity)
-```
-> ✅ Automatically decodes to your struct slice using reflection
-
-
-#### 🚀 Usage examples
+Pass a pointer to that struct into `MFindOne` and `MCreateOne`. Pass a pointer to a slice into `MFindMany`.
 
 ```go
 package main
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/nghialthanh/morn-go"
 	"github.com/nghialthanh/morn-go/logger"
 	"github.com/nghialthanh/morn-go/option"
-)
-
-const (
-	UserCollection = "users"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type User struct {
-	ID        *bson.ObjectID `bson:"_id,omitempty"`
-	CreatedAt *time.Time     `bson:"created_at"`
-	UpdatedAt *time.Time     `bson:"updated_at"`
-	Username  string         `bson:"username"`
-	UserID    int64          `bson:"user_id"`
-	Password  string         `bson:"password"`
-	Email     string         `bson:"email"`
-}
-
-func InitUserModel(ins *morn.Instance) *morn.Dao {
-	dao := morn.NewDao(UserCollection, User{}, ins, nil)
-
-	enumTrue := true
-	dao.Clause().Option(option.QueryOption{
-		Unique: &enumTrue,
-	}).CreateIndex("user_id:1")
-
-	//composite index
-	dao.Clause().CreateIndex("username:1", "email:1")
-	return dao
+	ID       *bson.ObjectID `bson:"_id,omitempty"`
+	Created  *time.Time     `bson:"created_at"`
+	Username string         `bson:"username"`
+	UserID   int64          `bson:"user_id"`
+	Email    string         `bson:"email"`
 }
 
 func main() {
-	fmt.Println("Hello, World!")
-
-	logger := logger.NewFmtLogger()
-	url := ""
-	ins, err := morn.SetupMongoByURI(url, &option.MornOption{
+	log := logger.NewFmtLogger()
+	ins, err := morn.SetupMongoByURI("mongodb://localhost:27017", &option.MornOption{
 		IsGenID:       true,
 		DefaultNumber: 100000,
-		Logger:        logger,
+		Logger:        log,
 	})
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err.Error())
+		return
+	}
+	defer ins.Disconnect()
+
+	ins.SetDB("app")
+	users := morn.NewDao("users", User{}, ins, nil)
+
+	unique := true
+	err = users.Clause().Option(option.QueryOption{Unique: &unique}).CreateIndex("user_id:1")
+	if err != nil {
+		log.Error(err.Error())
 		return
 	}
 
-	defer func() {
-		if err = ins.Disconnect(); err != nil {
-			logger.Error("Failed to disconnect from MongoDB", err)
-			panic(err)
-		}
-	}()
-
-	//set database
-	ins.SetDB("Cluster0")
-
-	//create dao user
-	userDao := InitUserModel(ins)
-
-	//create user
-	user := &User{
-		Username: "test",
-		Email:    "test@test.com",
-	}
-
-	user.UserID, err = userRepository.userDao.GenIDForDao()
+	ctx := context.Background()
+	user := &User{Username: "ada", Email: "ada@example.com"}
+	user.UserID, err = users.GenIDForDao()
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err.Error())
+		return
 	}
-    id, err := r.userDao.Clause().MCreateOne(user)
-	if err != nil {
-		logger.Error(err.Error())
-	}
-	logger.Info("User ID: %v", id)
 
+	id, err := users.Ctx(ctx).MCreateOne(user)
+	if err != nil {
+		log.Error(err.Error())
+		return
+	}
+	fmt.Println(id)
+
+	var found User
+	err = users.Ctx(ctx).Where(bson.M{"user_id": user.UserID}).MFindOne(&found)
+	if err != nil {
+		log.Error(err.Error())
+		return
+	}
+
+	var page []User
+	err = users.Ctx(ctx).
+		Where(bson.M{"user_id": bson.M{"$gt": 0}}).
+		Sort("user_id:asc").
+		Limit(20).
+		Skip(0).
+		MFindMany(&page)
+	if err != nil {
+		log.Error(err.Error())
+		return
+	}
 }
-
 ```
-You can explore how to organize your code and use the provided functions by referring to the examples in the example folder or the test cases in the test folder.
 
----
+`GenIDForDao` returns the counter's current value, then stores the next one. Set that value on the document yourself before you insert. With `IsGenID` set, `NewDao` creates the counter document for the collection on first use.
 
-## 🤝 Contribute
+Inside `Session`, build each query with `Ctx` and the context the callback receives. A query started with `Clause` stays on `context.TODO()`.
 
-**Use issues for everything**
+```go
+err = users.Session(ctx, func(tx context.Context) error {
+	_, err := users.Ctx(tx).MCreateOne(user)
+	return err
+}, nil)
+```
 
-- For a small change, just send a PR.
-- For bigger changes open an issue for discussion before sending a PR.
-- PR should have:
-  - Test case
-  - Documentation
-  - Example (If it makes sense)
-- You can also contribute by:
-  - Reporting issues
-  - Suggesting new features or enhancements
-  - Improve/fix documentation
+`Limit`, `Skip`, and `Sort` on the clause replace those same fields when you also set them on `option.QueryOption`. A hint, a collation, and the other query options still apply.
 
----
+The [example](example) folder shows the same calls inside a repository. The [test](test) folder runs each operation against a live database.
 
-## 🧩 Reference
+## Contributing
 
-- MongoDB         [MongoDB 8.0](https://www.mongodb.com/docs/manual/release-notes/8.0)
-- Mongo-Driver    [Mongo-Driver 2.0](https://www.mongodb.com/docs/drivers/go/v2.0/)
-- Golang          [Golang](https://go.dev/)
+Open an issue before a large change. A small fix can go straight to a pull request. Include a test, and update this file or the example when callers need to see the change.
 
-## 📄 License
+## Reference
+
+- [MongoDB Go driver v2](https://www.mongodb.com/docs/drivers/go/v2.0/)
+- [Go](https://go.dev/)
+
+## License
 
 © Nghia, 2025
 
-This project is licensed under the MIT License. See the [MIT License](https://github.com/go-gorm/gorm/blob/master/LICENSE) file for details.
+MIT. See [LICENSE](LICENSE).

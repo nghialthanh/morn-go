@@ -37,23 +37,35 @@ func ConvKeyValue(field string) (string, string, error) {
 }
 
 func IsStructType(template interface{}, entity interface{}) bool {
-	entityValue := reflect.ValueOf(entity)
-
-	if entityValue.Kind() == reflect.Invalid {
+	entityType, ok := structType(entity)
+	if !ok {
 		return false
 	}
-
-	// Handle pointer case
-	if entityValue.Kind() == reflect.Ptr {
-		if entityValue.IsNil() {
-			return false
-		}
-		entityValue = entityValue.Elem()
+	templateType, templateOK := structType(template)
+	if !templateOK {
+		return false
 	}
+	return entityType == templateType
+}
 
-	isStruct := entityValue.Kind() == reflect.Struct
-
-	return isStruct
+func structType(v interface{}) (reflect.Type, bool) {
+	if v == nil {
+		return nil, false
+	}
+	value := reflect.ValueOf(v)
+	if !value.IsValid() {
+		return nil, false
+	}
+	for value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return nil, false
+		}
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return nil, false
+	}
+	return value.Type(), true
 }
 
 func ConvSlice(entityList interface{}) ([]interface{}, error) {

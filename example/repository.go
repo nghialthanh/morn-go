@@ -53,7 +53,7 @@ func (r *UserRepository) TransactionUser() (interface{}, error) {
 			Username: "test",
 			Email:    "test@test.com",
 		}
-		_, err := r.userDao.Clause().MCreateOne(user)
+		_, err := r.userDao.Ctx(ctx).MCreateOne(user)
 		if err != nil {
 			return err
 		}
@@ -61,7 +61,7 @@ func (r *UserRepository) TransactionUser() (interface{}, error) {
 			Username: "test2",
 			Email:    "test2@test.com",
 		}
-		_, err = r.userDao.Clause().MCreateOne(user2)
+		_, err = r.userDao.Ctx(ctx).MCreateOne(user2)
 		if err != nil {
 			return err
 		}

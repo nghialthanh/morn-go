@@ -7,7 +7,6 @@ import (
 	"github.com/nghialthanh/morn-go/gen"
 	"github.com/nghialthanh/morn-go/logger"
 	"github.com/nghialthanh/morn-go/option"
-	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -97,16 +96,4 @@ func (i *Instance) GetClient() *mongo.Client {
 
 func (i *Instance) GetDao() *Dao {
 	return i.genDao
-}
-
-func (i *Instance) GenerateNewKey(key string) error {
-	if i.genDao == nil {
-		return errors.New("generator dao not found")
-	}
-
-	_, err := i.genDao.Ctx(context.TODO()).MCreateOne(bson.M{
-		"_id":   key,
-		"value": i.optField.DefaultNumber,
-	})
-	return err
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/nghialthanh/morn-go/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // UpdateOne updates a single document in the collection
@@ -17,27 +16,12 @@ import (
 // - Passing a struct may reduce performance due to the use of the reflect library.
 // - If pass struct please check type of field and omitempty tag
 func (c *Clause) MUpdateOne(updater interface{}) error {
-	var opts *options.UpdateOneOptionsBuilder = options.UpdateOne()
-	if c.opts != nil {
-		opts = c.opts.ToUpdateOne()
-	}
-
-	updateField := ""
-	if c.option.UpdateAtField != "" {
-		updateField = c.option.UpdateAtField
-	}
-
-	updaterObj, err := c.convTypeInput(updater, updateField)
+	updaterObj, err := c.setDocument(updater)
 	if err != nil {
 		return err
 	}
 
-	updaterObj = bson.M{
-		"$set": updaterObj,
-	}
-
-	res, err := c.collection.UpdateOne(c.ctx, c.condition, updaterObj, opts)
-
+	res, err := c.collection.UpdateOne(c.ctx, c.condition, updaterObj, c.updateOneOptions())
 	if err != nil {
 		return err
 	}
@@ -56,26 +40,7 @@ func (c *Clause) MUpdateOne(updater interface{}) error {
 // - Passing a struct may reduce performance due to the use of the reflect library.
 // - If pass struct please check type of field and omitempty tag
 func (c *Clause) MUpdateMany(updater interface{}) error {
-	var opts *options.UpdateManyOptionsBuilder = options.UpdateMany()
-	if c.opts != nil {
-		opts = c.opts.ToUpdateMany()
-	}
-
-	updateField := ""
-	if c.option.UpdateAtField != "" {
-		updateField = c.option.UpdateAtField
-	}
-
-	updaterObj, err := c.convTypeInput(updater, updateField)
-	if err != nil {
-		return err
-	}
-
-	updaterObj = bson.M{
-		"$set": updaterObj,
-	}
-
-	res, err := c.collection.UpdateMany(c.ctx, c.condition, updaterObj, opts)
+	res, err := c.updateMany(updater)
 	if err != nil {
 		return err
 	}
@@ -88,26 +53,7 @@ func (c *Clause) MUpdateMany(updater interface{}) error {
 }
 
 func (c *Clause) UpdateMany(updater interface{}) (*mongo.UpdateResult, error) {
-	var opts *options.UpdateManyOptionsBuilder = options.UpdateMany()
-	if c.opts != nil {
-		opts = c.opts.ToUpdateMany()
-	}
-
-	updateField := ""
-	if c.option.UpdateAtField != "" {
-		updateField = c.option.UpdateAtField
-	}
-
-	updaterObj, err := c.convTypeInput(updater, updateField)
-	if err != nil {
-		return nil, err
-	}
-
-	updaterObj = bson.M{
-		"$set": updaterObj,
-	}
-
-	res, err := c.collection.UpdateMany(c.ctx, c.condition, updaterObj, opts)
+	res, err := c.updateMany(updater)
 	if err != nil {
 		return nil, err
 	}
@@ -119,17 +65,21 @@ func (c *Clause) UpdateMany(updater interface{}) (*mongo.UpdateResult, error) {
 	return res, nil
 }
 
+func (c *Clause) updateMany(updater interface{}) (*mongo.UpdateResult, error) {
+	updaterObj, err := c.setDocument(updater)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.collection.UpdateMany(c.ctx, c.condition, updaterObj, c.updateManyOptions())
+}
+
 // IncreaseValue increases the value of a field in the collection
 // With field is a string in the format of field:value
 // Example: "age:5" or "age:-1"
 // Warning:
 // - If condition not mapping with any document, the operation will create a new document with the field and value
 func (c *Clause) MIncreaseValue(entity interface{}, field string, upsert bool) error {
-	var opts *options.FindOneAndUpdateOptionsBuilder = options.FindOneAndUpdate()
-	if c.opts != nil {
-		opts = c.opts.ToFindOneAndUpdate()
-	}
-
 	key, value, err := utils.ConvKeyValue(field)
 	if err != nil {
 		return err
@@ -139,7 +89,7 @@ func (c *Clause) MIncreaseValue(entity interface{}, field string, upsert bool) e
 		return errors.New("value must be a number")
 	}
 
-	opts = opts.SetUpsert(upsert)
+	opts := c.findOneAndUpdateOptions().SetUpsert(upsert)
 	res := c.collection.FindOneAndUpdate(c.ctx, c.condition, bson.M{
 		"$inc": bson.M{key: valInt},
 	}, opts)
@@ -151,10 +101,7 @@ func (c *Clause) MIncreaseValue(entity interface{}, field string, upsert bool) e
 	}
 
 	if entity != nil {
-		err = c.convResultToObj(entity, res)
-		if err != nil {
-			return err
-		}
+		return c.convResultToObj(entity, res)
 	}
 
 	return nil
@@ -165,66 +112,29 @@ func (c *Clause) MIncreaseValue(entity interface{}, field string, upsert bool) e
 // Filter is a map[string]interface{} or bson.M take from Where method
 // Record after update will be returned in entity field
 func (c *Clause) MFindOneAndUpdate(updater interface{}, entity interface{}) error {
-
-	var opts *options.FindOneAndUpdateOptionsBuilder = options.FindOneAndUpdate()
-	if c.opts != nil {
-		opts = c.opts.ToFindOneAndUpdate()
-	}
-
-	updateField := ""
-	if c.option.UpdateAtField != "" {
-		updateField = c.option.UpdateAtField
-	}
-
-	updaterObj, err := c.convTypeInput(updater, updateField)
+	res, err := c.findOneAndUpdate(updater)
 	if err != nil {
 		return err
 	}
 
-	updaterObj = bson.M{
-		"$set": updaterObj,
-	}
-
-	res := c.collection.FindOneAndUpdate(c.ctx, c.condition, updaterObj, opts)
-	if res == nil || res.Err() != nil {
-		if res.Err() == mongo.ErrNoDocuments {
-			return errors.New("no document found")
-		}
-		return res.Err()
-	}
-
 	if entity != nil {
-		err = c.convResultToObj(entity, res)
-		if err != nil {
-			return err
-		}
+		return c.convResultToObj(entity, res)
 	}
 
 	return nil
 }
 
 func (c *Clause) FindOneAndUpdate(updater interface{}) (*mongo.SingleResult, error) {
+	return c.findOneAndUpdate(updater)
+}
 
-	var opts *options.FindOneAndUpdateOptionsBuilder = options.FindOneAndUpdate()
-	if c.opts != nil {
-		opts = c.opts.ToFindOneAndUpdate()
-	}
-
-	updateField := ""
-	if c.option.UpdateAtField != "" {
-		updateField = c.option.UpdateAtField
-	}
-
-	updaterObj, err := c.convTypeInput(updater, updateField)
+func (c *Clause) findOneAndUpdate(updater interface{}) (*mongo.SingleResult, error) {
+	updaterObj, err := c.setDocument(updater)
 	if err != nil {
 		return nil, err
 	}
 
-	updaterObj = bson.M{
-		"$set": updaterObj,
-	}
-
-	res := c.collection.FindOneAndUpdate(c.ctx, c.condition, updaterObj, opts)
+	res := c.collection.FindOneAndUpdate(c.ctx, c.condition, updaterObj, c.findOneAndUpdateOptions())
 	if res == nil || res.Err() != nil {
 		if res.Err() == mongo.ErrNoDocuments {
 			return nil, errors.New("no document found")
